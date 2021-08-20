@@ -1,0 +1,76 @@
+version: '3.1'
+
+services:
+  postgres_app:
+    image: postgres:latest
+    container_name: PP-postgres
+    restart: always
+    ports:
+    - "5432:5432"
+    networks:
+      - pp_network_default
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  postgres-schema-loader:
+    image: postgres:latest
+    container_name: PP-postgres-schema
+    depends_on:
+      - postgres_app
+    volumes:
+    - ./PP_postgres_scripts:/PP_postgres_scripts
+    networks:
+      - pp_network_default
+    environment:
+      POSTGRES_IP: postgres_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command: >
+      /bin/bash -c
+      " cd PP_postgres_scripts
+      && chmod +x init_database.sh
+      && ./init_database.sh"
+
+  postgres-data-loader:
+    image: script_loader:latest
+    container_name: PP-postgres-data
+    depends_on:
+      - postgres_app
+      - postgres-schema-loader
+    volumes:
+    - ./Scripts:/src/main/java/resources/Scripts
+    networks:
+      - pp_network_default
+    environment:
+      POSTGRES_IP: postgres_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  springApi:
+    image: pp_api:latest
+    container_name: PP-API
+    depends_on:
+      - postgres-data-loader
+    networks:
+      - pp_network_default
+    ports:
+    - 7070:7070
+    environment:
+      FRONTEND_IP: http://localhost:8080
+      POSTGRES_IP: postgres_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  vueApp:
+    image: pp_vue:latest
+    container_name: PP-VUE
+    depends_on:
+      - springApi
+    networks:
+      - pp_network_default
+
+networks:
+  pp_network_default:
+
+
