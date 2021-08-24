@@ -38,14 +38,13 @@ services:
     depends_on:
       - postgres_app
       - postgres-schema-loader
-    volumes:
-    - ./Scripts:/src/main/java/resources/Scripts
     networks:
       - pp_network_default
     environment:
       POSTGRES_IP: postgres_app
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_PORT: 5432
 
   springApi:
     image: pp_api:latest
@@ -57,10 +56,10 @@ services:
     ports:
     - 7070:7070
     environment:
-      FRONTEND_IP: http://localhost:8080
       POSTGRES_IP: postgres_app
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_PORT: 5432
 
   vueApp:
     image: pp_vue:latest

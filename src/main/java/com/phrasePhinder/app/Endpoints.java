@@ -25,6 +25,10 @@ public class Endpoints {
     public ArrayList<String> getComedian() {
         return getListFromPostgres("comedian");
     }
+    @GetMapping("/api/shows")
+    public ArrayList<String> getAllShows(){
+        return getAllShowsFromPostgres();
+    }
 
     @PostMapping("/api/search")
     public ArrayList<ShowOccurrence> getOccurrences(@RequestParam String show, @RequestParam String phrase) {
@@ -37,21 +41,21 @@ public class Endpoints {
                 replaceAll("[^a-z A-Z 0-9]", "").replaceAll(" +", " ").trim();
 
         Connection connection = null;
-        Statement statement = null;
+        PreparedStatement statement = null;
         try {
             Class.forName("org.postgresql.Driver");
             connection = DriverManager
-                    .getConnection("jdbc:postgresql://" + env.get("POSTGRES_IP") + ":5432/phrasephinder",
+                    .getConnection("jdbc:postgresql://" + env.get("POSTGRES_IP") + ":" + env.get("POSTGRES_PORT") +"/phrasephinder",
                             env.get("POSTGRES_USER"), env.get("POSTGRES_PASSWORD"));
             System.out.println("Opened database successfully");
 
-            statement = connection.createStatement();
-            String sql = String.format("SELECT * FROM %s Where phrase Like '%%%s%%' ORDER BY seasonnum ASC, episodenum ASC, startime Asc;", show, phrase);
-
+            String sql = String.format("SELECT * FROM %s Where phrase Like ? ORDER BY seasonnum ASC, episodenum ASC;",show);
+            statement = connection.prepareStatement(sql);
+            statement.setString(1,"%" + phrase + "%");
             ResultSet result = null;
             ArrayList<ShowOccurrence> resultArray = new ArrayList<>();
             try {
-                result = statement.executeQuery(sql);
+                result = statement.executeQuery();
             } catch (PSQLException ex) {
                 System.out.println(ex.getMessage());
             }
@@ -77,18 +81,50 @@ public class Endpoints {
 
     public static ArrayList<String> getListFromPostgres(String type) {
         Connection connection = null;
+        PreparedStatement statement = null;
+        try {
+            ArrayList<String> series = new ArrayList<>();
+            Class.forName("org.postgresql.Driver");
+            connection = DriverManager
+                    .getConnection("jdbc:postgresql://" + env.get("POSTGRES_IP") + ":" + env.get("POSTGRES_PORT") +"/phrasephinder",
+                            env.get("POSTGRES_USER"), env.get("POSTGRES_PASSWORD"));
+            System.out.println("Opened database successfully");
+
+            String sql = "SELECT name FROM shows Where category = ? ORDER BY name ASC;";
+            statement = connection.prepareStatement(sql);
+            statement.setString(1,type);
+            ResultSet result = null;
+            ArrayList<String> resultArray = new ArrayList<>();
+            try {
+                result = statement.executeQuery();
+            } catch (PSQLException ex) {
+                System.out.println(ex.getMessage());
+            }
+            while (result.next()) {
+                resultArray.add(result.getString("name"));
+            }
+            statement.close();
+            connection.close();
+            return resultArray;
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return new ArrayList<>();
+    }
+    public static ArrayList<String> getAllShowsFromPostgres(){
+        Connection connection = null;
         Statement statement = null;
         try {
             ArrayList<String> series = new ArrayList<>();
             Class.forName("org.postgresql.Driver");
             connection = DriverManager
-                    .getConnection("jdbc:postgresql://" + env.get("POSTGRES_IP") + ":5432/phrasephinder",
+                    .getConnection("jdbc:postgresql://" + env.get("POSTGRES_IP") + ":" + env.get("POSTGRES_PORT") +"/phrasephinder",
                             env.get("POSTGRES_USER"), env.get("POSTGRES_PASSWORD"));
             System.out.println("Opened database successfully");
 
             statement = connection.createStatement();
-            String sql = String.format("SELECT name FROM shows Where category = '%s' ORDER BY name ASC;", type);
             ResultSet result = null;
+            String sql = "SELECT * FROM shows;";
             ArrayList<String> resultArray = new ArrayList<>();
             try {
                 result = statement.executeQuery(sql);
@@ -105,20 +141,5 @@ public class Endpoints {
             ex.printStackTrace();
         }
         return new ArrayList<>();
-    }
-
-    private static ArrayList getArrayList(Statement statement, String sql) throws SQLException {
-        ResultSet result = null;
-        ArrayList<String> resultArray = new ArrayList<>();
-        try {
-            result = statement.executeQuery(sql);
-        } catch (PSQLException ex) {
-            System.out.println(ex.getMessage());
-        }
-        while (result.next()) {
-            resultArray.add(result.getString("name"));
-        }
-        statement.close();
-        return resultArray;
     }
 }
