@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Map;
-@CrossOrigin(origins = {"http://phrasephinder.com","http://www.phrasephinder.com","http://localhost"})
+@CrossOrigin(origins = {"http://phrasephinder.com","http://www.phrasephinder.com","http://localhost","https://phrasephinder.com","https://www.phrasephinder.com","192.168.1.10"})
 @RestController
 public class Endpoints {
     private static final Map<String, String> env = System.getenv();
@@ -32,7 +32,62 @@ public class Endpoints {
 
     @PostMapping("/api/search")
     public ArrayList<ShowOccurrence> getOccurrences(@RequestParam String show, @RequestParam String phrase) {
+        if(Trie.trieShows.containsKey(show)){
+            return getOccurrencesFromTrie(show, phrase);
+        }
         return getOccurrencesFromPostgres(show, phrase);
+    }
+
+    @PostMapping("/api/didYouMean")
+    public ArrayList<String> getDidYouMean(@RequestParam String show, @RequestParam String phrase){
+        phrase = phrase.toLowerCase().replaceAll("\\[.*?\\]", " ").
+                replaceAll("[^a-z A-Z 0-9]", "").replaceAll(" +", " ").trim();
+
+        String[] phraseSplit = phrase.split(" ");
+        StringBuilder stringBuilder = new StringBuilder();
+        int i = phraseSplit.length > 5 ? phraseSplit.length - 5 : 0;
+        int prefixLength = i - 1;
+        while(i < phraseSplit.length){
+            stringBuilder.append(phraseSplit[i]);
+            stringBuilder.append(" ");
+            i++;
+        }
+        stringBuilder.deleteCharAt(stringBuilder.length() - 1);
+        String shortenedPhrase = stringBuilder.toString();
+
+        StringBuilder prefix = new StringBuilder();
+        for(int j = 0; j < prefixLength; j++){
+            prefix.append(phraseSplit[j]);
+            prefix.append(" ");
+        }
+        System.out.println("show: " + show + "phrase: " + shortenedPhrase + " prefix: " + prefix.toString());
+        return Trie.didYouMean(show,shortenedPhrase,prefix.toString());
+    }
+
+    private ArrayList<ShowOccurrence> getOccurrencesFromTrie(String show, String phrase){
+        phrase = phrase.toLowerCase().replaceAll("\\[.*?\\]", " ").
+                replaceAll("[^a-z A-Z 0-9]", "").replaceAll(" +", " ").trim();
+
+        String[] phraseSplit = phrase.split(" ");
+        StringBuilder stringBuilder = new StringBuilder();
+        int i = phraseSplit.length > 5 ? phraseSplit.length - 5 : 0;
+        while(i < phraseSplit.length){
+            stringBuilder.append(phraseSplit[i]);
+            stringBuilder.append(" ");
+            i++;
+        }
+        stringBuilder.deleteCharAt(stringBuilder.length() - 1);
+        phrase = stringBuilder.toString();
+        ArrayList<ShowOccurrenceToIndex> showOccurrenceToIndices = Trie.search(show,phrase);
+        ArrayList<ShowOccurrence> showOccurrences = new ArrayList<ShowOccurrence>();
+
+        for(ShowOccurrenceToIndex showOccurrenceToIndex: showOccurrenceToIndices){
+            Map<String,String> map = Trie.episodeMap.get(showOccurrenceToIndex.episodeIndex);
+            ShowOccurrence newShowOccurrence = new ShowOccurrence(String.valueOf(showOccurrenceToIndex.startTime),String.valueOf(showOccurrenceToIndex.endTime),
+                    map.get("seasonNum"),map.get("episodeNum"),map.get("episodeName"));
+            showOccurrences.add(newShowOccurrence);
+        }
+        return showOccurrences;
     }
 
     private ArrayList<ShowOccurrence> getOccurrencesFromPostgres(String show, String phrase) {
